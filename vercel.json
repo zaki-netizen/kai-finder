@@ -2,12 +2,13 @@
   "version": 2,
   "builds": [
     {
-      "src": "backend/package.json",
-      "use": "@vercel/node",
-      "config": {
-        "installCommand": "cd backend && npm install",
-        "buildCommand": "cd backend && npx prisma generate"
-      }
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "dist" }
+    },
+    {
+      "src": "backend/src/server.js",
+      "use": "@vercel/node"
     }
   ],
   "routes": [

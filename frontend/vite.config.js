@@ -11,7 +11,8 @@ export default defineConfig({
   },
   server: {
     port: 3000,
-    proxy: {
+    // Only proxy in development, not during build
+    proxy: process.env.NODE_ENV === 'development' ? {
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,
@@ -20,12 +21,13 @@ export default defineConfig({
         target: 'http://localhost:5000',
         changeOrigin: true,
       },
-    },
+    } : {},
   },
-  // Vercel deployment
   base: '/',
   build: {
     outDir: 'dist',
     assetsDir: 'assets',
+    // Disable SSR for static hosting
+    ssr: false,
   },
 })

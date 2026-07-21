@@ -30,9 +30,9 @@ const app = express();
 // Security headers
 app.use(helmet());
 
-// CORS
+// CORS - allow all origins for Vercel
 app.use(cors({
-  origin: config.frontendUrl,
+  origin: true,
   credentials: true,
 }));
 
@@ -41,16 +41,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================
-// STATIC FILES
+// STATIC FILES (only in Node, not serverless)
 // ============================================
 
-// Create uploads directory if not exists
-const uploadsDir = path.join(__dirname, '..', config.upload.dir);
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+if (typeof window === 'undefined' && !process.env.VERCEL) {
+  const uploadsDir = path.join(__dirname, '..', config.upload.dir);
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  app.use('/uploads', express.static(uploadsDir));
 }
-
-app.use('/uploads', express.static(uploadsDir));
 
 // ============================================
 // API ROUTES
@@ -74,7 +74,6 @@ app.get('/api/health', (req, res) => {
     success: true,
     message: 'KAI Finder API is running',
     timestamp: new Date().toISOString(),
-    environment: config.nodeEnv,
   });
 });
 
@@ -82,7 +81,6 @@ app.get('/api/health', (req, res) => {
 // ERROR HANDLING
 // ============================================
 
-// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -90,11 +88,9 @@ app.use((req, res) => {
   });
 });
 
-// Global error handler
 app.use((err, req, res, next) => {
   console.error('Server Error:', err);
 
-  // Multer errors
   if (err.code === 'LIMIT_FILE_SIZE') {
     return res.status(400).json({
       success: false,
@@ -105,53 +101,11 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     success: false,
     message: err.message || 'Internal server error',
-    ...(config.nodeEnv === 'development' && { stack: err.stack }),
   });
 });
 
 // ============================================
-// START SERVER (for local development)
+// EXPORT FOR VERCEL
 // ============================================
 
-const startServer = async () => {
-  try {
-    // Test database connection
-    await prisma.$connect();
-    console.log('✅ Database connected');
-
-    // Start server
-    app.listen(config.port, () => {
-      console.log(`
-╔═══════════════════════════════════════════════════════╗
-║   🚂  KAI Finder Backend Server                      ║
-║   Server running on: http://localhost:${config.port}              ║
-║   Environment: ${config.nodeEnv.padEnd(15)}                         ║
-╚═══════════════════════════════════════════════════════╝
-      `);
-    });
-  } catch (error) {
-    console.error('❌ Failed to start server:', error);
-    process.exit(1);
-  }
-};
-
-// Handle graceful shutdown
-process.on('SIGINT', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  await prisma.$disconnect();
-  process.exit(0);
-});
-
-process.on('SIGTERM', async () => {
-  console.log('\n🛑 Shutting down gracefully...');
-  await prisma.$disconnect();
-  process.exit(0);
-});
-
-// Start server if not in Vercel
-if (process.env.VERCEL !== '1') {
-  startServer();
-}
-
-// Export for Vercel
 module.exports = app;
