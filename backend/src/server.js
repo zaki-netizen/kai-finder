@@ -20,7 +20,7 @@ const notifikasiRoutes = require('./routes/notifikasiRoutes');
 const qrRoutes = require('./routes/qrRoutes');
 const matchingRoutes = require('./routes/matchingRoutes');
 
-// Initialize Express
+// Create Express app
 const app = express();
 
 // ============================================
@@ -39,10 +39,6 @@ app.use(cors({
 // Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// ============================================
-// Rate limiting DISABLED for development
-// ============================================
 
 // ============================================
 // STATIC FILES
@@ -114,7 +110,7 @@ app.use((err, req, res, next) => {
 });
 
 // ============================================
-// START SERVER
+// START SERVER (for local development)
 // ============================================
 
 const startServer = async () => {
@@ -127,18 +123,9 @@ const startServer = async () => {
     app.listen(config.port, () => {
       console.log(`
 ╔═══════════════════════════════════════════════════════╗
-║                                                       ║
 ║   🚂  KAI Finder Backend Server                      ║
-║                                                       ║
 ║   Server running on: http://localhost:${config.port}              ║
 ║   Environment: ${config.nodeEnv.padEnd(15)}                         ║
-║                                                       ║
-║   API Endpoints:                                      ║
-║   • GET  /api/health                                  ║
-║   • POST /api/auth/register                          ║
-║   • POST /api/auth/login                             ║
-║   • GET  /api/auth/me                                ║
-║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
       `);
     });
@@ -161,4 +148,10 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-startServer();
+// Start server if not in Vercel
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
+
+// Export for Vercel
+module.exports = app;

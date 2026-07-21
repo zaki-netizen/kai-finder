@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+// Use relative path in production, localhost in development
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_URL,
@@ -50,16 +51,13 @@ api.interceptors.response.use(
         }
       } catch (refreshError) {
         // Refresh failed - DON'T redirect here, let the component handle it
-        // Just reject the promise and clear tokens
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
-        // Trigger a page reload to re-initialize auth state
         window.dispatchEvent(new Event('auth:logout'));
       }
     }
 
-    // Don't auto-redirect to login - let components handle their own auth errors
     return Promise.reject(error);
   }
 );
