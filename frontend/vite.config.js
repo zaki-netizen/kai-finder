@@ -22,4 +22,10 @@ export default defineConfig({
       },
     },
   },
+  // Vercel deployment
+  base: '/',
+  build: {
+    outDir: 'dist',
+    assetsDir: 'assets',
+  },
 })
