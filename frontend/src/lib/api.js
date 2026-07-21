@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-// Use relative path in production, localhost in development
+// Use relative path - will work on same domain in production
 const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
@@ -10,7 +10,6 @@ const api = axios.create({
   },
 });
 
-// Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
@@ -19,50 +18,37 @@ api.interceptors.request.use(
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  (error) => Promise.reject(error)
 );
 
-// Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // If token expired and we haven't tried to refresh yet
     if (error.response?.data?.code === 'TOKEN_EXPIRED' && !originalRequest._retry) {
       originalRequest._retry = true;
-
       try {
         const refreshToken = localStorage.getItem('refreshToken');
         if (refreshToken) {
-          const response = await axios.post(`${API_URL}/auth/refresh`, {
-            refreshToken,
-          });
-
+          const response = await axios.post(`${API_URL}/auth/refresh`, { refreshToken });
           const { accessToken, refreshToken: newRefreshToken } = response.data.data;
-
           localStorage.setItem('token', accessToken);
           localStorage.setItem('refreshToken', newRefreshToken);
-
           originalRequest.headers.Authorization = `Bearer ${accessToken}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // Refresh failed - DON'T redirect here, let the component handle it
         localStorage.removeItem('token');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('user');
         window.dispatchEvent(new Event('auth:logout'));
       }
     }
-
     return Promise.reject(error);
   }
 );
 
-// Auth API
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
@@ -73,17 +59,14 @@ export const authAPI = {
   updateProfile: (data) => api.put('/auth/profile', data),
 };
 
-// User/Petugas API
 export const userAPI = {
   getAll: (params) => api.get('/users', { params }),
   getById: (id) => api.get(`/users/${id}`),
   create: (data) => api.post('/users', data),
   update: (id, data) => api.put(`/users/${id}`, data),
-  changePassword: (id, data) => api.put(`/users/${id}/password`, data),
   delete: (id) => api.delete(`/users/${id}`),
 };
 
-// Barang API
 export const barangAPI = {
   getAll: (params) => api.get('/barang', { params }),
   getById: (id) => api.get(`/barang/${id}`),
@@ -92,11 +75,10 @@ export const barangAPI = {
   delete: (id) => api.delete(`/barang/${id}`),
   getByKRL: (params) => api.get('/barang/krl', { params }),
   getByKA: (params) => api.get('/barang/kai', { params }),
-  search: (params) => api.get('/barang/search', { params }),
+  search: (params) => api.get('/barang/search', params),
   updateStatus: (id, status) => api.put(`/barang/${id}/status`, { status }),
 };
 
-// Klaim API
 export const klaimAPI = {
   getAll: (params) => api.get('/klaim', { params }),
   getById: (id) => api.get(`/klaim/${id}`),
@@ -107,7 +89,6 @@ export const klaimAPI = {
   confirm: (id, data) => api.post(`/klaim/${id}/confirm`, data),
 };
 
-// Kategori API
 export const kategoriAPI = {
   getAll: () => api.get('/kategori'),
   create: (data) => api.post('/kategori', data),
@@ -115,22 +96,18 @@ export const kategoriAPI = {
   delete: (id) => api.delete(`/kategori/${id}`),
 };
 
-// Stations API
 export const stationsAPI = {
   getAll: () => api.get('/stations'),
   getById: (id) => api.get(`/stations/${id}`),
 };
 
-// Upload API
 export const uploadAPI = {
-  uploadFoto: (formData) =>
-    api.post('/upload/foto', formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    }),
+  uploadFoto: (formData) => api.post('/upload/foto', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  }),
   deleteFoto: (id) => api.delete(`/upload/foto/${id}`),
 };
 
-// Stats API
 export const statsAPI = {
   getDashboard: () => api.get('/stats/dashboard'),
   getBarang: () => api.get('/stats/barang'),
@@ -138,7 +115,6 @@ export const statsAPI = {
   export: (params) => api.get('/stats/export', { params }),
 };
 
-// Notifikasi API
 export const notifikasiAPI = {
   getAll: () => api.get('/notifikasi'),
   markRead: (id) => api.put(`/notifikasi/${id}/read`),
@@ -146,12 +122,10 @@ export const notifikasiAPI = {
   delete: (id) => api.delete(`/notifikasi/${id}`),
 };
 
-// QR Code API
 export const qrAPI = {
   generate: (barangId) => api.get(`/qr/${barangId}`),
 };
 
-// Audit Log API
 export const auditLogAPI = {
   getAll: (params) => api.get('/notifikasi/audit-log', { params }),
 };

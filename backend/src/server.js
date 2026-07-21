@@ -1,9 +1,7 @@
 const express = require('express');
+const serverless = require('aws-serverless-express');
 const cors = require('cors');
 const helmet = require('helmet');
-const path = require('path');
-const fs = require('fs');
-
 const config = require('./config');
 const prisma = require('./config/database');
 
@@ -23,39 +21,16 @@ const matchingRoutes = require('./routes/matchingRoutes');
 // Create Express app
 const app = express();
 
-// ============================================
-// MIDDLEWARE
-// ============================================
-
-// Security headers
+// Middleware
 app.use(helmet());
-
-// CORS - allow all origins for Vercel
 app.use(cors({
-  origin: true,
+  origin: '*',
   credentials: true,
 }));
-
-// Body parser
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ============================================
-// STATIC FILES (only in Node, not serverless)
-// ============================================
-
-if (typeof window === 'undefined' && !process.env.VERCEL) {
-  const uploadsDir = path.join(__dirname, '..', config.upload.dir);
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-  app.use('/uploads', express.static(uploadsDir));
-}
-
-// ============================================
-// API ROUTES
-// ============================================
-
+// Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/barang', barangRoutes);
@@ -68,44 +43,17 @@ app.use('/api/notifikasi', notifikasiRoutes);
 app.use('/api/qr', qrRoutes);
 app.use('/api/matching', matchingRoutes);
 
-// Health check
 app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'KAI Finder API is running',
-    timestamp: new Date().toISOString(),
-  });
+  res.json({ success: true, message: 'API Running' });
 });
-
-// ============================================
-// ERROR HANDLING
-// ============================================
 
 app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Endpoint tidak ditemukan',
-  });
+  res.status(404).json({ success: false, message: 'Not found' });
 });
 
-app.use((err, req, res, next) => {
-  console.error('Server Error:', err);
-
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(400).json({
-      success: false,
-      message: 'File terlalu besar. Maksimal 5MB.',
-    });
-  }
-
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal server error',
-  });
-});
-
-// ============================================
-// EXPORT FOR VERCEL
-// ============================================
-
+// Export for Vercel
+const server = serverless.createServer(app);
 module.exports = app;
+module.exports.handler = (event, context) => {
+  serverless.proxy(server, event, context);
+};
