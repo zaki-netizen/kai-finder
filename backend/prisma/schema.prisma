@@ -1,0 +1,285 @@
+// KAI Finder - Lost and Found System
+// Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USER MANAGEMENT
+// ============================================
+
+enum Role {
+  ADMIN_PUSAT
+  ADMIN_STASIUN
+  PETUGAS
+  PENUMPANG
+}
+
+enum TipeStasiun {
+  KRL
+  KA_JARAK_JAUH
+  KEDUA
+}
+
+enum TipeTransport {
+  KRL
+  KA_JARAK_JAUH
+}
+
+enum StatusBarang {
+  AKTIF
+  DIKLAIM
+  DIAMBIL
+  ARCHIVE
+}
+
+enum StatusKlaim {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  nama          String
+  no_hp         String?
+  role          Role      @default(PENUMPANG)
+  stasiun_id    String?
+  stasiun       Station?  @relation(fields: [stasiun_id], references: [id])
+  is_active     Boolean   @default(true)
+  created_at    DateTime  @default(now())
+  updated_at    DateTime  @updatedAt
+
+  // Relations
+  barang_diinput      Barang[]         @relation("createdBy")
+  klaim               Klaim[]
+  barang_hilang       BarangHilang[]
+  notifikasi          Notifikasi[]
+  audit_logs          AuditLog[]
+
+  @@map("users")
+}
+
+model Station {
+  id        String        @id @default(uuid())
+  kode      String        @unique
+  nama      String
+  tipe      TipeStasiun[]
+  lokasi    String?
+  alamat    String?
+  is_active Boolean       @default(true)
+  created_at DateTime     @default(now())
+  updated_at DateTime     @updatedAt
+
+  // Relations
+  users         User[]
+  barang        Barang[]
+
+  @@map("stations")
+}
+
+// ============================================
+// BARANG (LOST & FOUND ITEMS)
+// ============================================
+
+model Kategori {
+  id          String    @id @default(uuid())
+  nama        String    @unique
+  deskripsi   String?
+  icon        String?
+  masa_simpan Int       @default(30) // hari
+  created_at  DateTime  @default(now())
+  updated_at  DateTime  @updatedAt
+
+  // Relations
+  barang        Barang[]
+  barang_hilang BarangHilang[]
+
+  @@map("kategori")
+}
+
+model Barang {
+  id                   String         @id @default(uuid())
+  kode                 String         @unique // BRG-YYYY-NNNN
+  nama                 String
+  kategori_id          String
+  kategori             Kategori       @relation(fields: [kategori_id], references: [id])
+  warna                String?
+  deskripsi            String?
+  ciri_khas            String?
+  tipe_transport       TipeTransport
+  jalur                String?        // untuk KRL
+  tujuan               String?        // untuk KRL
+  stasiun_id           String
+  stasiun              Station        @relation(fields: [stasiun_id], references: [id])
+  no_kereta            String?        // untuk KA
+  nama_kereta          String?        // untuk KA
+  relasi               String?        // untuk KA
+  gerbong              String?        // untuk KA
+  kursi                String?        // untuk KA
+  tanggal_perjalanan   DateTime?      // untuk KA
+  lokasi_penyimpanan   String?
+  latitude             String?
+  longitude            String?
+  status               StatusBarang   @default(AKTIF)
+  ditemukan_at         DateTime
+  diambil_at           DateTime?
+  qr_code              String?        // URL QR Code
+  created_by           String
+  creator              User           @relation("createdBy", fields: [created_by], references: [id])
+  created_at           DateTime       @default(now())
+  updated_at           DateTime       @updatedAt
+
+  // Relations
+  foto        BarangFoto[]
+  klaim       Klaim[]
+
+  @@map("barang")
+}
+
+model BarangFoto {
+  id          String   @id @default(uuid())
+  barang_id   String
+  barang      Barang   @relation(fields: [barang_id], references: [id], onDelete: Cascade)
+  url         String
+  thumbnail   String?
+  is_primary  Boolean  @default(false)
+  created_at  DateTime @default(now())
+
+  @@map("barang_foto")
+}
+
+// ============================================
+// KLAIM SYSTEM
+// ============================================
+
+model Klaim {
+  id                   String        @id @default(uuid())
+  barang_id            String
+  barang               Barang        @relation(fields: [barang_id], references: [id])
+  user_id              String
+  user                 User          @relation(fields: [user_id], references: [id])
+
+  // Identitas pengklaim
+  nama_pengklaim       String
+  no_hp                String
+  email                String
+
+  // Untuk KA Jarak Jauh
+  no_tiket             String?
+
+  // Bukti kepemilikan
+  bukti_ktp            String        // URL foto KTP
+  bukti_kepemilikan    String        // URL foto bukti
+
+  // Deskripsi barang dari pengklaim
+  deskripsi            String
+  warna_barang         String?
+  ciri_khas_barang     String?
+
+  // Verifikasi
+  status               StatusKlaim   @default(PENDING)
+  verified_by          String?
+  verified_at          DateTime?
+  alasan_tolak         String?
+
+  // Kode verifikasi pengambilan
+  kode_verifikasi      String?
+  ttd_pengambilan      String?       // URL TTD digital
+
+  created_at           DateTime      @default(now())
+  updated_at           DateTime      @updatedAt
+
+  @@map("klaim")
+}
+
+// ============================================
+// "KEMUNGKINAN MILIK SAYA" FEATURE
+// ============================================
+
+model BarangHilang {
+  id              String   @id @default(uuid())
+  user_id         String
+  user            User     @relation(fields: [user_id], references: [id])
+  kategori_id     String
+  kategori        Kategori @relation(fields: [kategori_id], references: [id])
+
+  nama_barang     String?
+  deskripsi       String?
+  warna           String?
+  ciri_khas       String?
+  tipe_transport  TipeTransport?
+
+  // Hasil fuzzy matching (JSON)
+  match_results   Json?    @default("[]")
+
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  @@map("barang_hilang")
+}
+
+// ============================================
+// NOTIFICATIONS
+// ============================================
+
+model Notifikasi {
+  id        String   @id @default(uuid())
+  user_id   String
+  user      User     @relation(fields: [user_id], references: [id])
+  judul     String
+  pesan     String
+  type      String   @default("INFO") // INFO, SUCCESS, WARNING, ERROR
+  is_read   Boolean  @default(false)
+  data      Json?    // Additional data
+  created_at DateTime @default(now())
+
+  @@map("notifikasi")
+}
+
+// ============================================
+// AUDIT LOG
+// ============================================
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  user_id     String?
+  user        User?    @relation(fields: [user_id], references: [id])
+  action      String   // CREATE, UPDATE, DELETE
+  entity_type String   // barang, klaim, user, dll
+  entity_id   String
+  old_value   Json?
+  new_value   Json?
+  ip_address  String?
+  user_agent  String?
+  created_at  DateTime @default(now())
+
+  @@index([entity_type, entity_id])
+  @@index([user_id])
+  @@index([created_at])
+
+  @@map("audit_log")
+}
+
+// ============================================
+// PASSWORD RESET
+// ============================================
+
+model PasswordReset {
+  id        String   @id @default(uuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  used      Boolean  @default(false)
+  created_at DateTime @default(now())
+
+  @@map("password_reset")
+}
